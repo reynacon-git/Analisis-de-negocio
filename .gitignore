@@ -1,3 +1,725 @@
+## Introducción
+# 
+# El presente análisis tiene como objetivo principal optimizar la inversión en marketing de Showz, una empresa de venta de entradas para eventos, con el fin de maximizar el retorno de la inversión (ROI) y mejorar la eficiencia de las campañas publicitarias. A través de un análisis exhaustivo de los datos históricos de visitas, pedidos y gastos de marketing, se busca identificar las estrategias más efectivas para adquirir y retener clientes.
+# 
+# Para lograr este objetivo, se llevará a cabo un análisis detallado de los siguientes aspectos:
+# 
+# * Se estudiará cómo los usuarios interactúan con la plataforma de Showz, identificando patrones de navegación, duración de las sesiones y frecuencia de retorno.
+# 
+# * Se analizará el tiempo que transcurre desde la primera visita hasta la realización de una compra, así como los factores que influyen en la decisión de compra.
+# 
+# * Se evaluará el rendimiento de las diferentes fuentes de adquisición de clientes, calculando el costo de adquisición por cliente y el retorno sobre la inversión.
+# 
+# * Se identificarán grupos de clientes con características y comportamientos similares para adaptar las estrategias de marketing de manera más efectiva.
+
+# %% [markdown]
+# ## Analisis de datos
+
+# %%
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import datetime
+
+# %%
+visitas = pd.read_csv("/datasets/visits_log_us.csv")
+pedidos = pd.read_csv("/datasets/orders_log_us.csv")
+gastos_marketing = pd.read_csv("/datasets/costs_us.csv")
+
+# %%
+visitas.info()
+
+# %%
+nuevo_visitas= []
+for viejo_df in visitas.columns:
+    lower = viejo_df.lower()
+    space = lower.replace(' ','_')
+    nuevo_visitas.append(space)
+visitas.columns = nuevo_visitas
+
+visitas.info()
+
+# %%
+print(visitas.duplicated().value_counts())
+print(visitas.isnull().sum())
+
+# %%
+visitas['start_ts'] = pd.to_datetime(visitas['start_ts'])
+visitas['end_ts'] = pd.to_datetime(visitas['end_ts'])
+
+# %%
+pedidos.info()
+
+# %%
+nuevo_pedidos = []
+for viejo_df in pedidos.columns:
+    lower = viejo_df.lower()
+    space = lower.replace(' ','_')
+    nuevo_pedidos.append(space)
+pedidos.columns = nuevo_pedidos
+
+pedidos.info()
+
+# %%
+print(pedidos.duplicated().value_counts())
+print(pedidos.isna().sum())
+
+# %%
+pedidos["buy_ts"] = pd.to_datetime(pedidos["buy_ts"])
+
+# %%
+gastos_marketing.info()
+
+# %%
+print(gastos_marketing.duplicated().value_counts())
+print(gastos_marketing.isna().sum())
+
+# %%
+gastos_marketing["dt"] = pd.to_datetime(gastos_marketing["dt"])
+
+# %% [markdown]
+# Se organizaron los datos, establaciendo el tipo de dato correcto para cada columna, verificando si existen duplicados o valores ausentes y se modificaron los nombres de columnas para optimizar el analisis 
+
+# %% [markdown]
+# ## Visitas
+
+# %% [markdown]
+# ### Cuántas personas lo usan cada día, semana y mes
+
+# %%
+visitas['dia'] = visitas['start_ts'].dt.date
+visitas['semana'] = visitas['start_ts'].dt.isocalendar().week
+visitas['mes_año'] = visitas['start_ts'].dt.to_period('M')
+
+# %%
+# Usuarios únicos por día
+usuarios_dia = visitas.groupby('dia')['uid'].nunique()
+print(usuarios_dia.sort_values(ascending=False).head())
+
+# Usuarios únicos por semana
+usuarios_semana = visitas.groupby('semana')['uid'].nunique()
+print(usuarios_semana.sort_values(ascending=False).head())
+
+# Usuarios únicos por mes
+usuarios_por_mes_año = visitas.groupby('mes_año')['uid'].nunique()
+usuarios_por_mes_año = usuarios_por_mes_año.sort_index()
+print(usuarios_por_mes_año.sort_values(ascending=False).head())
+
+# %% [markdown]
+# Usuarios únicos por día:
+# El día con mayor cantidad de usuarios únicos fue el 2017-11-24.
+# Los siguientes días con mayor cantidad de usuarios se concentran en los meses de noviembre de 2017 y febrero y marzo de 2018.
+# Esto sugiere que pudo haber habido eventos o campañas específicas durante esos períodos que impulsaron la adquisición de nuevos usuarios.
+# 
+# Usuarios únicos por semana:
+# Las semanas 47, 49 y 50 del año fueron las que registraron el mayor número de usuarios únicos.
+# Esto podría indicar que hubo un período de alta actividad hacia finales de año y principios del año siguiente.
+# 
+# Usuarios únicos por mes:
+# Los meses de noviembre y diciembre de 2017, así como febrero de 2018, fueron los que registraron el mayor número de usuarios únicos.
+# Esto refuerza la idea de que hubo un período de alta actividad hacia finales de 2017 y principios de 2018.
+
+# %% [markdown]
+# #### Graficos para las  personas Showz usan cada día, semana y mes
+
+# %%
+visitas = visitas.sort_values(by='start_ts')
+
+# Usuarios por día
+usuarios_por_fecha = visitas.groupby(visitas['start_ts'].dt.date)['uid'].nunique()
+
+# Gráfico de usuarios por fecha
+plt.figure(figsize=(12, 6))
+plt.plot(usuarios_por_fecha.index, usuarios_por_fecha.values)
+plt.title('Número de usuarios únicos por fecha')
+plt.xlabel('Fecha')
+plt.ylabel('Número de usuarios')
+plt.show()
+
+# %% [markdown]
+# Posee un crecimiento gradual a largo plazo, parece haber una tendencia positiva en el número de usuarios.
+
+# %%
+# Usuarios por semana
+usuarios_semana = visitas.resample('W-MON', on='start_ts')['uid'].nunique()
+
+# Gráfico de usuarios por semana
+plt.figure(figsize=(12, 6))
+plt.plot(usuarios_semana.index, usuarios_semana.values)
+plt.title('Número de usuarios por semana')
+plt.xlabel('Semana')
+plt.ylabel('Número de usuarios')
+plt.show()
+
+# %% [markdown]
+# Con este grafico se pueden concluir pero a la vez hacerse varias preguntas: 
+# 
+# *¿Qué eventos o campañas se llevaron a cabo durante los períodos de mayor actividad? Identificar estos eventos puede ayudar a entender qué estrategias son efectivas para atraer nuevos usuarios.
+# 
+# *¿Existen patrones estacionales? Analizar si hay variaciones significativas en el número de usuarios durante ciertas épocas del año que pueden coincidir con eventos especificos.
+
+# %%
+# Usuarios por mes
+usuarios_mes = visitas.resample('M', on='start_ts')['uid'].nunique()
+usuarios_mes = usuarios_mes.sort_index()
+
+# Gráfico de usuarios por mes
+plt.figure(figsize=(12, 6))
+plt.plot(usuarios_mes.index, usuarios_mes.values)
+plt.title('Número de usuarios por mes')
+plt.xlabel('Mes')
+plt.ylabel('Número de usuarios')
+plt.show()
+
+# %% [markdown]
+# Tiene una tendencia ascendente, claramente se observa un crecimiento sostenido en el número de usuarios a lo largo de los meses analizados.
+# 
+# Hay un crecimiento más pronunciado entre finales de 2017 y principios de 2018, lo que sugiere que se implementaron estrategias exitosas o que ocurrieron eventos que impulsaron el crecimiento durante ese período.Aunque no es tan evidente como en un gráfico semanal, podrían existir patrones estacionales si se analiza un período más largo.
+# 
+# Sin embargo, se observa una ligera desaceleración en el crecimiento hacia el final del período analizado. Esto podría deberse a diversos factores, como saturación del mercado, cambios en la competencia o ajustes en las estrategias de marketing.
+
+# %% [markdown]
+# ### Sesiones por día
+
+# %%
+sesiones_por_dia = visitas.groupby(visitas['start_ts'].dt.date)['uid'].count()
+print(sesiones_por_dia)
+
+# %%
+plt.figure(figsize=(12, 6))
+plt.plot(sesiones_por_dia.index, sesiones_por_dia.values)
+plt.title('Número de sesiones por día')
+plt.xlabel('Día')
+plt.ylabel('Número de sesiones')
+plt.show()
+
+# %% [markdown]
+# Este grafico, al igual qeu el grafico de la cantidad de sesiones de usuarios unicos al dia reflejan un incremento a lo largo del tiempo.
+
+# %% [markdown]
+# ### Duración de cada sesión en minutos
+
+# %%
+visitas['sesion_duracion'] = (visitas['end_ts'] - visitas['start_ts']).dt.total_seconds() / 60
+visitas
+
+# %%
+plt.figure(figsize=(10, 6))
+plt.hist(visitas['sesion_duracion'], bins=20)
+plt.title('Histograma de duración de las sesiones')
+plt.xlabel('Duración de la sesión (minutos)')
+plt.ylabel('Frecuencia')
+plt.show()
+
+# %% [markdown]
+# La gran mayoría de las sesiones tienen una duración muy corta, concentrándose en los primeros minutos. Esto sugiere que muchos usuarios realizan visitas rápidas al sitio web.A medida que aumenta la duración de la sesión, la frecuencia disminuye drásticamente. Hay muy pocas sesiones que superen los 100 minutos.
+# 
+# La forma del histograma indica una distribución sesgada hacia la derecha. Esto significa que hay una cola larga hacia los valores altos, lo que confirma la presencia de algunas sesiones muy largas, aunque sean pocas.
+# 
+# Sin embargo, si hay problemas de usabilidad en el sitio, los usuarios podrían abandonar las sesiones rápidamente al encontrar dificultades para navegar o encontrar lo que buscan.
+
+# %% [markdown]
+# ### Tasa de retorno
+
+# %%
+semana = 7
+
+visitas['ultima_visita'] = visitas.groupby('uid')['start_ts'].diff()
+
+visitas['retorno'] = visitas['ultima_visita'] <= pd.Timedelta(days=semana)
+
+retorno_usuarios = visitas['retorno'].sum()
+total_usuarios = visitas['uid'].nunique()
+tasa_retorno = (retorno_usuarios / total_usuarios) * 100
+
+print("Tasa de retorno en", semana, "días:", tasa_retorno, "%")
+
+# %% [markdown]
+# Un 31% de tasa de retorno en una semana sugiere que una parte significativa de los usuarios vuelve a la plataforma con regularidad.
+# 
+# Una tasa de retorno relativamente alta puede indicar un buen nivel de engagement por parte de los usuarios. Están encontrando valor en la plataforma y están dispuestos a volver.
+# 
+# Esta tasa también puede ser un indicador temprano de la capacidad de la plataforma para fidelizar a los usuarios.
+
+# %% [markdown]
+# ## Pedidos
+
+# %% [markdown]
+# ###  Tiempo entre la primera visita y la primera compra 
+
+# %%
+# primera visita
+primeras_visitas = visitas.groupby('uid')['start_ts'].min()
+
+# primera compra
+primeras_compras = pedidos.groupby('uid')['buy_ts'].min()
+
+conversiones = pd.merge(primeras_visitas, primeras_compras, on='uid', how='left')
+
+# tiempo de conversión en días
+conversiones['tiempo_conversion'] = (conversiones['buy_ts'] - conversiones['start_ts']).dt.days
+
+conversiones
+
+# %% [markdown]
+# <div class="alert alert-block alert-success">
+# <b>Comentario de Revisor v2</b> <a class="tocSkip"></a>
+# 
+# Correcto, muy bien! Nota que algunos usuarios no tienen tiempo de conversión ya que nunca han comprado.
+# 
+# </div>
+
+# %%
+# histograma del tiempo de conversión
+plt.figure(figsize=(10, 6))
+plt.hist(conversiones['tiempo_conversion'], bins=20)
+plt.title('Tiempo entre la primera visita y la primera compra')
+plt.xlabel('Tiempo de conversión (días)')
+plt.ylabel('Frecuencia')
+plt.show()
+
+# %% [markdown]
+# Dado que una gran parte de las conversiones ocurre en un período corto, es crucial optimizar la experiencia de compra inicial para facilitar la conversión. Esto incluye asegurarse de que el proceso de compra sea sencillo, rápido y seguro.
+# 
+# Implementar estrategias de retargeting para llegar a los usuarios que no han realizado una compra después de un período de tiempo determinado. Esto puede incluir campañas de email marketing, anuncios en redes sociales o mostrar anuncios personalizados en otros sitios web.
+# 
+# Como recomendacion se puede observar qué lleva a un usuario a demorar tanto su conversión, ver cuántos usuarios no convierten y por qué.
+
+# %% [markdown]
+# #### Nuevos usuarios  por dia y sus fuentes 
+
+# %%
+pedidos['ordenes_dia'] = pedidos['buy_ts'].astype('datetime64[D]')
+
+
+primera_orden = pedidos.groupby('uid').agg({'ordenes_dia': 'min'}).reset_index()
+primera_orden.columns = ['uid','dia_primera_orden']
+cohort_dia = primera_orden.groupby('dia_primera_orden').agg({'uid': 'nunique'}).reset_index() 
+
+
+cohort_dia.columns = ['dia_primera_orden' , 'uid']
+
+
+cohort_dia = cohort_dia.sort_values('uid', ascending=False)
+print(cohort_dia.head())
+
+# %%
+df_dia = pd.merge(primera_orden, visitas, on='uid', how='inner')
+
+fuentes_por_cohorte_dia = df_dia.groupby(['dia_primera_orden', 'source_id']).agg({'uid': 'nunique'}).reset_index()
+fuentes_por_cohorte_dia.columns = ['dia_primera_compra', 'fuente', 'usuarios']
+
+fuentes_por_cohorte_dia = fuentes_por_cohorte_dia.sort_values('usuarios', ascending=False)
+
+print(fuentes_por_cohorte_dia)
+
+# %% [markdown]
+# Las fuentes con mayor número de "usuarios" en general suelen ser las más efectivas en términos de adquisición de nuevos clientes.Al analizar la evolución de cada fuente a lo largo del tiempo, se pueden identificar tendencias y cambios en su desempeño.
+# 
+# Si se observa una variación significativa en el número de usuarios nuevos a lo largo del tiempo, podría indicar la existencia de factores estacionales que influyen en el comportamiento de los usuarios (por ejemplo, campañas de marketing específicas, eventos estacionales).
+
+# %% [markdown]
+# #### Nuevos usuarios por semana y sus fuentes 
+
+# %%
+pedidos['ordenes_semana'] = pedidos['buy_ts'].astype('datetime64[W]')
+
+
+primera_orden_semana = pedidos.groupby('uid').agg({'ordenes_semana': 'min'}).reset_index()
+primera_orden_semana.columns = ['uid','semana_primera_orden']
+cohort_semana = primera_orden_semana.groupby('semana_primera_orden').agg({'uid': 'nunique'}).reset_index() 
+
+
+cohort_semana.columns = ['semana_primera_orden' , 'uid']
+
+cohort_semana = cohort_semana.sort_values('uid', ascending=False)
+print(cohort_semana.head())
+
+# %%
+df_semana = pd.merge(primera_orden_semana, visitas, on='uid', how='inner')
+
+fuentes_por_cohorte_semana = df_semana.groupby(['semana_primera_orden', 'source_id']).agg({'uid': 'nunique'}).reset_index()
+fuentes_por_cohorte_semana.columns = ['semana_primera_compra', 'fuente', 'usuarios']
+
+fuentes_por_cohorte_semana = fuentes_por_cohorte_semana.sort_values('usuarios', ascending=False)
+
+print(fuentes_por_cohorte_semana)
+
+# %% [markdown]
+# En este caso se puede ver como las fuentes 3 y 4 son las mas efectivas para atraer clientes. Si se ejecutan campañas de marketing específicas durante ciertas semanas, podemos evaluar su impacto en la adquisición de nuevos usuarios y comparar su efectividad y al observar las semanas con mayor y menor número de nuevos usuarios, podemos identificar períodos de alta y baja actividad y ajustar nuestras estrategias de marketing en consecuencia.
+
+# %% [markdown]
+# #### Nuevos usuarios por mes y  sus fuentes  
+
+# %%
+pedidos['ordenes_mes'] = pedidos['buy_ts'].astype('datetime64[M]')
+
+
+primera_orden_mes = pedidos.groupby('uid').agg({'ordenes_mes': 'min'}).reset_index()
+primera_orden_mes.columns = ['uid','mes_primera_orden']
+cohort_mes = primera_orden_mes.groupby('mes_primera_orden').agg({'uid': 'nunique'}).reset_index()# escribe tu código aquí
+
+
+cohort_mes.columns = ['mes_primera_orden' , 'uid']
+
+cohort_mes = cohort_mes.sort_values('uid', ascending=False)
+print(cohort_mes.head())
+
+# %%
+df_mes = pd.merge(primera_orden_mes, visitas, on='uid', how='inner')
+
+fuentes_por_cohorte_mes = df_mes.groupby(['mes_primera_orden', 'source_id']).agg({'uid': 'nunique'}).reset_index()
+fuentes_por_cohorte_mes.columns = ['mes_primera_compra', 'fuente', 'usuarios']
+
+fuentes_por_cohorte_mes = fuentes_por_cohorte_mes.sort_values('usuarios', ascending=False)
+
+print(fuentes_por_cohorte_mes)
+
+# %% [markdown]
+# Si se observan picos o caídas en el número de nuevos usuarios en ciertos meses, se pueden identificar patrones estacionales y ajustar las estrategias de marketing en consecuencia.
+
+# %% [markdown]
+# Nuestros datos revelan que las fuentes 3 y 4 son las que generan un mayor número de nuevos usuarios en Showz. Esto indica que estas fuentes están conectando con nuestra audiencia objetivo de manera más efectiva. Para maximizar nuestro crecimiento, proponemos aumentar la inversión en estas fuentes y explorar nuevas estrategias para potenciar las demás.
+
+# %% [markdown]
+# ### Cantidad de pedidos realizados y  tamaño promedio de compra durante 2 trimestres diferentes 
+
+# %%
+mascarilla = (pedidos['buy_ts'] >= '2017-06-01') & (pedidos['buy_ts'] <= '2017-08-31')
+df_filtro = pedidos.loc[mascarilla]
+
+# Contar los pedidos
+num_pedidos = len(df_filtro)
+print("Número total de pedidos entre octubre y diciembre de 2017:", num_pedidos)
+
+promedio_compra = df_filtro['revenue'].mean()
+
+print("El tamaño promedio de compra entre octubre y diciembre de 2017 es:", promedio_compra)
+
+# %%
+mascarilla = (pedidos['buy_ts'] >= '2018-03-01') & (pedidos['buy_ts'] <= '2018-05-31')
+df_filtro = pedidos.loc[mascarilla]
+
+# Contar los pedidos
+num_pedidos = len(df_filtro)
+print("Número total de pedidos entre marzo y mayo de 2018:", num_pedidos)
+
+promedio_compra = df_filtro['revenue'].mean()
+
+print("El tamaño promedio de compra entre marzo y mayo de 2018 es:", promedio_compra)
+
+# %% [markdown]
+# En cuanto al número de pedidos, se ha producido un aumento considerable, pasando de 6421 en 2017 a 12335 en 2018. Esto representa un incremento de casi el 92%, lo que indica una mayor demanda y un posible éxito en las estrategias de adquisición de clientes o en la fidelización de los existentes.
+# 
+# El tamaño promedio de compra también ha experimentado un crecimiento, aunque más moderado, pasando de 4.70 en 2017 a 5.01 en 2018. Este aumento del 6.6% sugiere que los clientes están gastando ligeramente más por pedido, lo que podría deberse a un aumento general en el valor percibido de los productos o servicios.
+
+# %% [markdown]
+# ### LTV
+
+# %%
+primeras_compras = pedidos.groupby('uid')['buy_ts'].min().reset_index()
+primeras_compras.rename(columns={'buy_ts': 'first_purchase_date'}, inplace=True)
+
+# columna de mes de primera compra
+primeras_compras['first_purchase_month'] = primeras_compras['first_purchase_date'].dt.to_period('M').dt.to_timestamp()
+
+# unir tabla de pedidos
+pedidos = pd.merge(pedidos, primeras_compras, on='uid', how='left')
+
+# columna de mes de la orden
+pedidos['order_month'] = pedidos['buy_ts'].dt.to_period('M').dt.to_timestamp()
+
+# antigüedad de la cohorte
+pedidos['cohort_age'] = (pedidos['order_month'] - pedidos['first_purchase_month']) / np.timedelta64(1, 'M')
+pedidos['cohort_age'] = pedidos['cohort_age'].round().astype('int')
+
+# agrupar por first_purchase_month y contar usuarios diferentes
+cohort_sizes = pedidos.groupby('first_purchase_month')['uid'].nunique().reset_index()
+cohort_sizes.rename(columns={'uid': 'usuarios_cohorte'}, inplace=True)
+
+# tabla ltv
+ltv = pedidos.groupby(['first_purchase_month', 'cohort_age'])['revenue'].sum().reset_index()
+
+ltv = pd.merge(ltv, cohort_sizes, on='first_purchase_month', how='left')
+
+ltv['ltv'] = ltv['revenue'] / ltv['usuarios_cohorte']
+
+ltv_table_pivot = ltv.pivot(index='first_purchase_month', columns='cohort_age', values='ltv')
+ltv_table_pivot = ltv_table_pivot.cumsum(axis=1)
+
+ltv_table_pivot
+
+# %%
+ltv_201706 = ltv_table_pivot.loc['2017-06-01'].sum()
+ltv_201706
+
+# %%
+promedio_columna_5 = ltv_table_pivot.iloc[:, 5].mean()
+
+print(promedio_columna_5)
+
+# %%
+visitas_junio_2017 = visitas[visitas['start_ts'].dt.to_period('M') == '2017-06']
+
+visitas_pedidos_junio_2017 = pd.merge(visitas_junio_2017, pedidos, on='uid', how='left')
+
+clientes_adquiridos_junio_2017 = visitas_pedidos_junio_2017.groupby('source_id')['uid'].nunique()
+
+gastos_marketing['month'] = gastos_marketing['dt'].dt.to_period('M')
+gastos_junio_2017 = gastos_marketing[gastos_marketing['month'] == '2017-06']
+gastos_por_fuente_junio_2017 = gastos_junio_2017.groupby('source_id')['costs'].sum()
+
+cac_junio_2017 = gastos_por_fuente_junio_2017 / clientes_adquiridos_junio_2017
+print(cac_junio_2017)
+
+# %% [markdown]
+# Las fuentes poseen un CAC, significativamente menor que el LTV, asi que se podria destinar un mayor presupuesto de inversion a los anuncios de marketing 
+
+# %% [markdown]
+# #### Histograma de pedidos por mes
+
+# %%
+plt.xticks(rotation=45) 
+plt.title('Pedidos por mes')
+plt.xlabel('Meses')
+plt.ylabel('Ganancias')
+sns.histplot(pedidos['buy_ts'].astype("datetime64"), bins=10, kde=True)
+
+# %% [markdown]
+# Existe una tendencia general al alza en las ganancias a lo largo del período analizado, con un pico a mediados de diciembre. Esto sugiere un aumento en el número de pedidos o en el valor promedio de cada pedido.
+# 
+# La variación en las ganancias podría estar influenciada por factores estacionales, como festividades o eventos especiales que ocurren a finales de año.
+# 
+# La distribución de los pedidos no es uniforme a lo largo del tiempo, lo que indica que puede haber períodos de alta y baja demanda.
+
+# %% [markdown]
+# ## Marketing
+
+# %% [markdown]
+# ### Gastos
+#  #### Total
+
+# %%
+total_costos = gastos_marketing['costs'].sum()
+print(f'Costo total: {total_costos}')
+
+# %% [markdown]
+# El costo total de marketing para el periodo 2017-2018 asciende a 112,546.11 usd. Este valor representa el gasto total invertido en todas las fuentes de anuncios durante el periodo. Es un punto de referencia importante para evaluar la eficiencia de la inversión en marketing y comparar los gastos con otros periodos o presupuestos.
+
+# %% [markdown]
+# #### Por fuente de adquisición
+
+# %%
+costos_por_fuente = gastos_marketing.groupby('source_id')['costs'].sum()
+costos_por_fuente = costos_por_fuente.sort_values(ascending=False)
+print(f'Costos por fuente: {costos_por_fuente}')
+
+# %% [markdown]
+# Al analizar los costos por fuente, podemos identificar que la fuente de anuncios "3" es la que ha recibido la mayor inversión, seguida de las fuentes "4" y "5". Esto entonces coincide con lo analizado anteriormente, donde observamos que las fuentes 3 y 4 son las mas usadas o las que generan mayor numero de nuevos usuarios.
+
+# %% [markdown]
+# #### A lo largo del tiempo
+
+# %%
+costos_tiempo = gastos_marketing.groupby('dt')['costs'].sum()
+costos_tiempo = costos_tiempo.sort_values(ascending=False)
+print(f'Costos a lo largo del tiempo: {costos_tiempo}')
+
+# %% [markdown]
+# La distribución de los gastos a lo largo del tiempo muestra una variabilidad considerable. Hay algunos días con gastos significativamente más altos que otros. Esto podría deberse a diferentes factores, como campañas de marketing específicas, promociones o eventos estacionales.
+
+# %%
+gastos_por_dia_y_fuente = gastos_marketing.groupby(['dt', 'source_id'])['costs'].sum().unstack()
+
+gastos_por_dia_y_fuente.plot(figsize=(12, 6))
+plt.title('Gastos por día y fuente')
+plt.xlabel('Fecha')
+plt.ylabel('Costo')
+plt.legend(title='Fuente de anuncios')
+plt.grid(True)
+plt.show()
+
+# %% [markdown]
+#  ### Costo de adquisición de clientes de cada una de las fuentes
+#  
+
+# %%
+primeras_compras = pedidos.groupby('uid')['buy_ts'].min().reset_index()
+primeras_compras.rename(columns={'buy_ts': 'first_purchase_date'}, inplace=True)
+
+primeras_visitas = visitas.sort_values(by='start_ts', ascending=True).groupby('uid').first()
+
+primeras_compras_visitas = pd.merge(primeras_visitas, primeras_compras, on='uid', how='left')
+
+primeras_compras_visitas.first_purchase_date = primeras_compras_visitas.first_purchase_date.values.astype('datetime64[D]')
+
+compradores_por_fuente_fecha = primeras_compras_visitas.groupby(['source_id', 'first_purchase_date'])['uid'].nunique().reset_index()
+compradores_por_fuente_fecha.rename(columns={'uid': 'num_compradores', 'source_id': 'fuente'}, inplace=True)
+
+compradores_por_fuente_fecha
+
+# %%
+
+# Costos por fecha y fuente
+gastos_fuente_fecha = gastos_marketing.groupby(['source_id', 'dt'])['costs'].sum().reset_index()
+gastos_fuente_fecha.rename(columns={'costs': 'total_costs', 'source_id':'fuente'}, inplace=True)
+
+gastos_fuente_fecha
+
+# %%
+union = pd.merge(compradores_por_fuente_fecha, gastos_fuente_fecha, on = 'fuente', how= 'left')
+
+# CAC diario
+union['cac_diario'] = union['total_costs'] / union['num_compradores']
+
+# Agrupar por fuente y calcular CAC promedio
+cac_por_fuente = union.groupby('fuente')['cac_diario'].mean()
+
+cac_por_fuente
+
+# %% [markdown]
+# El análisis del costo por adquisición (CAC) diario revela una variabilidad significativa entre las diferentes fuentes de adquisición. Las fuentes 3 y 5 presentan los CAC más elevados, lo que sugiere que estas estrategias de adquisición podrían ser menos rentables a largo plazo. Por el contrario, las fuentes 1 y 9 muestran un CAC más bajo, indicando una mayor eficiencia en la generación de nuevos clientes. Es importante destacar que la fuente 7 no presenta datos de CAC, lo que podría indicar que no hubo adquisiciones o gastos de marketing asociados a esta fuente durante el período analizado. 
+
+# %% [markdown]
+# ### Rentabilidad de la inversión (ROMI)
+
+# %%
+# Primera visita usuarios
+primera_visita = (
+    visitas[['uid','start_ts','source_id']]
+    .sort_values(by='start_ts',ascending=True)
+    .groupby('uid',as_index=False)
+    .first())
+
+# Mes de primera visita usuarios
+primera_visita['first_visit_month'] = primera_visita['start_ts'].astype('datetime64[M]')
+
+# Primera orden usuarios
+primer_pedido = (
+    pedidos[['uid','buy_ts']]
+    .sort_values(by='buy_ts',ascending=True)
+    .groupby('uid',as_index=False)
+    .first())
+
+# Mes de primera orden usuarios
+primer_pedido['first_order_month'] = primer_pedido['buy_ts'].astype('datetime64[M]')
+
+# Seleccionar columnas a usar de visitas
+primera_visita = primera_visita[['uid','source_id','first_visit_month']]
+
+# Unir data de primera orden a dataframe orders
+orders = pd.merge(pedidos,primer_pedido[['first_order_month','uid']],on='uid')
+
+# Obtener mes de compra
+orders['order_month'] = orders['buy_ts'].astype('datetime64[M]')
+
+# Seleccionar columnas a usar de ordenes
+compradores = orders[['uid','first_order_month','revenue','order_month']]
+
+# Unir data de ordenes con data de visitas
+compradores = pd.merge(compradores,primera_visita, on='uid')
+compradores
+
+# %%
+# Generar columna de mes en los costos
+gastos_marketing['month'] = gastos_marketing['dt'].astype('datetime64[M]')
+
+# Agrupar gastos por fuente y mes
+gastos_mensuales = gastos_marketing.groupby(['source_id', gastos_marketing['dt'].dt.to_period('M')])['costs'].sum().reset_index()
+gastos_mensuales
+
+# %%
+metricas = compradores.groupby(['source_id', compradores['first_order_month'].dt.to_period('M')]).agg(
+      tamaño_cohorte=('uid', 'nunique'),
+      revenue_por_mes=('revenue', 'sum')).reset_index()
+metricas
+
+# %%
+# Unir por source_id y mes
+metricas_completas = metricas.merge(gastos_mensuales, 
+                                             how='left', 
+                                             left_on=['source_id', 'first_order_month'], 
+                                             right_on=['source_id', 'dt'],
+                                             suffixes=('_pedidos', '_marketing'))
+
+  # Calcular LTV, CAC y ROMI
+metricas_completas['ltv'] = metricas_completas['revenue_por_mes'] / metricas_completas['tamaño_cohorte']
+metricas_completas['cac'] = metricas_completas['costs'] / metricas_completas['tamaño_cohorte']
+metricas_completas['romi'] = metricas_completas['ltv'] / metricas_completas['cac']
+metricas_completas
+
+# %% [markdown]
+# El análisis del ROMI por fuente y año revela una variabilidad significativa en la efectividad de las diferentes estrategias de adquisición. Si bien algunas fuentes mostraron un alto retorno de la inversión en 2017, se observó una tendencia general a la baja en el ROMI en 2018. Esto sugiere que podría ser necesario ajustar las estrategias de marketing para las fuentes con menor rendimiento. 
+
+# %% [markdown]
+# ### ROMI a lo largo del tiempo por fuente de anuncios
+
+# %%
+fecha_costos_por_fuente = gastos_marketing.groupby(['source_id', 'dt'])['costs'].sum().reset_index()
+
+# ingresos por fuente y fecha
+pedidos_visitas = pd.merge(pedidos,visitas, on="uid", how= "left")
+fecha_ingresos_por_fuente = pedidos_visitas.groupby(['source_id', 'buy_ts'])['revenue'].sum().reset_index()
+fecha_ingresos_por_fuente = fecha_ingresos_por_fuente.rename(columns={'source_id': 'source_id', 'buy_ts': 'dt'})
+
+# tablas de costos e ingresos
+romi_data = pd.merge(fecha_costos_por_fuente, fecha_ingresos_por_fuente, on=['source_id', 'dt'], how='left')
+romi_data['revenue'] = romi_data['revenue'].fillna(0)
+
+# ROMI
+romi_data['romi'] = (romi_data['revenue'] - romi_data['costs']) / romi_data['costs']
+
+# ROMI por fuente y fecha
+romi_over_time = romi_data.groupby(['source_id', 'dt'])['romi'].mean().reset_index()
+
+fig, ax = plt.subplots(figsize=(10, 6))
+
+for source in romi_over_time['source_id'].unique():
+  data = romi_over_time[romi_over_time['source_id'] == source]
+  ax.plot(data['dt'], data['romi'], label=source)
+
+ax.set_xlabel('Fecha')
+ax.set_ylabel('ROMI')
+ax.set_title('ROMI a lo largo del tiempo por fuente de anuncios')
+ax.legend()
+plt.show()
+
+# %% [markdown]
+# Las fuentes de anuncios no muestran un rendimiento estable a lo largo del tiempo. Esto podría deberse a diversos factores como cambios en las estrategias de marketing, fluctuaciones en la demanda o factores externos.
+# 
+# La mayoría de las fuentes presentan un ROMI negativo, lo que indica que, en general, las campañas de marketing no están siendo rentables.
+# 
+# Los resultados sugieren que es necesario realizar ajustes en las estrategias de marketing para mejorar el rendimiento de las campañas.
+
+# %% [markdown]
+# ## Conclusión general 
+
+# %% [markdown]
+# El análisis exhaustivo de los datos de visitas, pedidos y gastos de marketing de Showz ha revelado patrones interesantes y oportunidades de mejora en las estrategias de adquisición de clientes.
+# 
+# Las diferentes fuentes de adquisición presentan un rendimiento variable en términos de adquisición de nuevos usuarios y costo por adquisición. Algunas fuentes, como las 3 y 4, han demostrado ser altamente efectivas en términos de volumen de usuarios, pero también presentan un costo por adquisición más elevado.
+# 
+# Se ha observado una tendencia creciente en el número de pedidos y un aumento en el tamaño promedio de compra, lo que indica un crecimiento general del negocio. Sin embargo, el retorno sobre la inversión (ROMI) ha mostrado una tendencia a la baja en algunos casos, lo que sugiere la necesidad de ajustar las estrategias de marketing.
+# 
+# Existen oportunidades significativas para optimizar los gastos de marketing al concentrar los esfuerzos en las fuentes más rentables, mejorar la segmentación de la audiencia y personalizar las campañas de marketing.
+# 
+# Recomendaciones:
+# 
+# * Aumentar la inversión en las fuentes que han demostrado un mayor retorno de la inversión (ROMI) y un costo por adquisición más bajo.
+# 
+# * Realizar pruebas A/B para identificar las creatividades, mensajes y canales más efectivos para cada fuente.
+# 
+# * Segmentar la audiencia en grupos más pequeños y personalizados para ofrecer mensajes más relevantes y aumentar las tasas de conversión.
+# 
+# * Analizar el valor de vida del cliente (LTV) para evaluar la rentabilidad a largo plazo de cada adquisición.
+# 
+# * Desarrollar programas de fidelización para aumentar la retención de clientes y fomentar las compras repetidas.
+# 
+# * Realizar un seguimiento continuo: Monitorear regularmente las métricas clave para evaluar el impacto de las estrategias de marketing y realizar ajustes según sea necesario.
+# 
+# En conclusión, al optimizar la asignación del presupuesto de marketing y enfocarse en las fuentes más rentables, Showz puede mejorar significativamente su retorno sobre la inversión y acelerar el crecimiento del negocio. Es fundamental adoptar un enfoque basado en datos para tomar decisiones informadas y adaptar las estrategias de marketing a las necesidades cambiantes del mercado.
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
