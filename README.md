@@ -1,2 +1,4 @@
-# Analisis-de-negocio
-análisis tiene como objetivo principal optimizar la inversión en marketing de Showz, una empresa de venta de entradas para eventos, con el fin de maximizar el retorno de la inversión (ROI) y mejorar la eficiencia de las campañas publicitarias. (este proyecto Forma parte de un programa educativo)
+# Showz 
+Como objetivo analice los datos para optimizar los gastos de marketing, obtuve patron de consumo de los clientes usan el servicio, cantidad de nuevos usuarios, cuándo empiezan a comprar, cuánto dinero aporta cada cliente a la compañía, cuándo los ingresos cubren el costo de adquisición de los clientes, tasa de retorno, LTV, CAC y ROMI. 
+
+Las herramientas que use Python (pandas, numpy , seaborn, matplotlib)
